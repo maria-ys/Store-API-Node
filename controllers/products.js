@@ -1,7 +1,8 @@
+const { query } = require('express');
 const Product = require('../models/product');
 
 const getAllProducts = async (req, res) => {
-  const {featured, company, name, sort, fields} = req.query;
+  const {featured, company, name, sort, fields, numericFilters} = req.query;
   const queryObject = {};
 
   if(featured){
@@ -14,8 +15,33 @@ const getAllProducts = async (req, res) => {
     queryObject.name = {$regex: name, $options: 'i'};
   }
 
-  var result = Product.find(queryObject);
+  // numeric filtering
+  
+  if(numericFilters){
+    const operatorMap = {
+      '<':'$lt',
+      '<=':'$lte',
+      '=':'$eq',
+      '>':'$gt',
+      '>=':'$gte',
+    }
+    const regex = /\b(<|<=|=|>|>=)\b/g;
+    // replace mathematical operators by mongoose query operators
+    let filters = numericFilters.replace(regex, (match)=> `-${operatorMap[match]}-`);
 
+    // if option exists assign its value to query object after splitting
+    const options = ['price', 'rating'];
+    filters = filters.split(',').forEach(item=>{
+      const [field, operator, value] = item.split('-');
+      if(options.includes(field)){
+        queryObject[field] = {
+          [operator] : value
+        }
+      }
+    })
+  }
+
+  var result = Product.find(queryObject);
   // sorting 
   if(sort){
     const sortList = sort.split(',').join(' ');
